@@ -9992,6 +9992,14 @@ function groupBy(arr, key){
   return m;
 }
 
+// Classes de espelhamento (grupos com o mesmo resultado de sorteio).
+// Preencher cada classe com os códigos de grupo informados pelo Kayque, ex:
+// const CLASSES = [ ['000680','000690','000720'], ['000640','000710'] ];
+const CLASSES = [];
+const DEFAULT_MIRRORS = {};
+CLASSES.forEach(classe=>{ classe.forEach(g=>{ DEFAULT_MIRRORS[g] = classe.filter(x=>x!==g); }); });
+const mirrors = DEFAULT_MIRRORS;
+
 const grouped = groupBy(DATA, 'grupo');
 const groupMeta = new Map();
 for(const [grupo, rows] of grouped){
@@ -10062,6 +10070,16 @@ function render(){
     drawRow.innerHTML = inputsHtml;
     div.appendChild(drawRow);
 
+    if(!isLocked){
+      const mirrorRow = document.createElement('details');
+      mirrorRow.className = 'mirror-row';
+      const meusEspelhos = mirrors[grupo] || [];
+      let mirrorHtml = '<summary>Espelha automaticamente com: '+(meusEspelhos.length?meusEspelhos.join(', '):'nenhum')+'</summary>';
+      mirrorHtml += '<div class="mirror-list" style="color:var(--muted);font-size:11px;">Classes fixas definidas pelo Kayque — fala comigo se precisar mudar.</div>';
+      mirrorRow.innerHTML = mirrorHtml;
+      div.appendChild(mirrorRow);
+    }
+
     const table = document.createElement('table');
     table.innerHTML = '<thead><tr><th>Cota</th><th>Consorciado</th><th>Status</th></tr></thead>';
     const tbody = document.createElement('tbody');
@@ -10117,10 +10135,12 @@ container.addEventListener('click', e=>{
     const gd = ['','','','',''];
     inputs.forEach(el=>{ gd[Number(el.dataset.idx)] = el.value.replace(/\D/g,''); });
 
+    const espelhados = mirrors[grupo] || [];
     const updateObj = {}; updateObj[grupo] = gd;
+    espelhados.forEach(g=>{ updateObj[g] = gd.slice(); });
 
     // Atualiza local pra resposta imediata; o listener do Firestore confirma depois.
-    currentMonthData[grupo] = gd;
+    Object.keys(updateObj).forEach(g=>{ currentMonthData[g] = updateObj[g]; });
     editingOverride.delete(grupo);
 
     const hint = document.querySelector('[data-savedmsg="'+grupo+'"]');
@@ -10131,7 +10151,7 @@ container.addEventListener('click', e=>{
       { merge: true }
     ).then(()=>{
       const h = document.querySelector('[data-savedmsg="'+grupo+'"]');
-      if(h){ h.textContent = 'Salvo ✓'; setTimeout(()=>{ if(h) h.textContent=''; }, 3000); }
+      if(h){ h.textContent = 'Salvo'+(espelhados.length?' (+'+espelhados.length+' espelho'+(espelhados.length>1?'s':'')+')':'')+' ✓'; setTimeout(()=>{ if(h) h.textContent=''; }, 3000); }
     }).catch(err=>{
       console.error(err);
       const h = document.querySelector('[data-savedmsg="'+grupo+'"]');
