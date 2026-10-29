@@ -250,6 +250,8 @@
   <div class="month-row">
     <label for="buscaInput">Buscar:</label>
     <input id="buscaInput" type="text" placeholder="nº do grupo ou nome do consorciado" style="flex:1;background:#000;border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:4px;font-size:14px;">
+    <label for="consultorFiltro">Consultor:</label>
+    <select id="consultorFiltro"><option value="">Todos</option></select>
     <span class="month-hint" id="buscaHint"></span>
   </div>
 
@@ -10929,6 +10931,7 @@ function render(){
   let totContempladas = 0, totProximas = 0, totCotas = 0;
 
   const termo = (document.getElementById('buscaInput').value || '').trim().toLowerCase();
+  const consultor = document.getElementById('consultorFiltro').value;
   let sortedGroups = [...grouped.keys()].filter(g=>tipoDoGrupo(g)===activeTab).sort();
   if(termo){
     sortedGroups = sortedGroups.filter(g=>{
@@ -10936,7 +10939,10 @@ function render(){
       return grouped.get(g).some(r=>r.consorciado.toLowerCase().includes(termo) || r.comissionado.toLowerCase().includes(termo));
     });
   }
-  document.getElementById('buscaHint').textContent = termo ? (sortedGroups.length+' grupo(s) encontrado(s)') : '';
+  if(consultor){
+    sortedGroups = sortedGroups.filter(g=> grouped.get(g).some(r=>r.comissionado===consultor));
+  }
+  document.getElementById('buscaHint').textContent = (termo||consultor) ? (sortedGroups.length+' grupo(s) encontrado(s)') : '';
 
   // ===== Resultado do sorteio por classe (bucket) =====
   const gruposPorChave = new Map();
@@ -11139,6 +11145,15 @@ mesInput.addEventListener('change', ()=>{
   escutaMes(selectedMonth);
 });
 document.getElementById('buscaInput').addEventListener('input', ()=>{ render(); });
+
+const consultorSelect = document.getElementById('consultorFiltro');
+[...new Set(DATA.map(d=>d.comissionado))].filter(Boolean).sort().forEach(c=>{
+  const opt = document.createElement('option');
+  opt.value = c;
+  opt.textContent = c;
+  consultorSelect.appendChild(opt);
+});
+consultorSelect.addEventListener('change', ()=>{ render(); });
 </script>
 </body>
 </html>
