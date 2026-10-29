@@ -241,8 +241,10 @@
   </div>
 
   <div class="tabs" id="tabs">
-    <button class="tab-btn active" data-tab="veiculos" type="button">🚛 Consórcio de Veículos</button>
-    <button class="tab-btn" data-tab="imoveis" type="button">🏠 Consórcio de Imóveis</button>
+    <button class="tab-btn active" data-tab="veiculos" type="button">🚛 Veículos</button>
+    <button class="tab-btn" data-tab="imoveis" type="button">🏠 Imóveis</button>
+    <button class="tab-btn" data-tab="servicos" type="button">🔧 Serviços</button>
+    <button class="tab-btn" data-tab="outros" type="button">📦 Outros bens móveis</button>
   </div>
 
   <div class="month-row">
@@ -1272,17 +1274,6 @@ const DATA = [
   "valor": "100.000,00",
   "situacao": "Normal",
   "numProxAssembleia": 35,
-  "dataProxVenc": "2026-11-16"
- },
- {
-  "grupo": "000030",
-  "cota": "11",
-  "consorciado": "ISABELLE DI BENE PRUDENTE",
-  "contemplacao": "Nao Contemplado",
-  "bem": "SE10",
-  "valor": "15.000,00",
-  "situacao": "Normal",
-  "numProxAssembleia": 32,
   "dataProxVenc": "2026-11-16"
  },
  {
@@ -10006,9 +9997,11 @@ function groupBy(arr, key){
 
 // Faixas de classificação por classe (tamanho de grupo), informadas pelo Kayque (29/10/2026)
 // a partir da tabela oficial da Comassetto. Formato de cada item: numero isolado, ou [min,max] pra faixa.
+// "servicos" é o sub-recorte 020-070 dentro da classe 1000 da tabela de imóveis (rotulado "SERVIÇOS" na tabela oficial).
 const RANGE_TABLES = {
   veiculos: {"500": [[1171,1172],[1502,1504],3013,[4109,4110],4115],"1000": [1173,[1601,1679],[1681,1682],[1684,1685],[1694,1695],1697,[1700,1701],1706,1708,1713,[4111,4114],[8000,8003]],"2000": [1680,1683,[1686,1689],[1691,1692],1696,[1698,1699],[1702,1705],1707,[1709,1712],1714,1718],"5000": [1690,1715]},
-  imoveis: {"1000": [[20,70],370,[430,510],600,6102],"2000": [420,[520,590],[611,640],[710,860],[960,1000],1100],"3333": [[651,700],[720,790],[800,850],880,890,930,940,950,1090,1120,[12126,12127],12129,12133,12148,12155,12165,[12175,12176],12183,12193,[12197,12198]],"5000": [870,900,910,921,[1010,1080],1110,[1180,12001],12128,[12130,12132],[12134,12147],[12149,12151],[12156,12159],[12161,12162],12164,12166,[12168,12170],12172,12174,12177,12179,[12181,12182],12184,12187,[12189,12190],12192,12194,12196,[12200,12203],[12208,12209],12211],"9999": [[12152,12154],12160,12163,12167,12171,12173,12178,12180,[12185,12186],12188,12191,12195,12199,12207,12210]}
+  servicos: {"1000": [[20,70]]},
+  imoveis: {"1000": [370,[430,510],600,6102],"2000": [420,[520,590],[611,640],[710,860],[960,1000],1100],"3333": [[651,700],[720,790],[800,850],880,890,930,940,950,1090,1120,[12126,12127],12129,12133,12148,12155,12165,[12175,12176],12183,12193,[12197,12198]],"5000": [870,900,910,921,[1010,1080],1110,[1180,12001],12128,[12130,12132],[12134,12147],[12149,12151],[12156,12159],[12161,12162],12164,12166,[12168,12170],12172,12174,12177,12179,[12181,12182],12184,12187,[12189,12190],12192,12194,12196,[12200,12203],[12208,12209],12211],"9999": [[12152,12154],12160,12163,12167,12171,12173,12178,12180,[12185,12186],12188,12191,12195,12199,12207,12210]}
 };
 function inSpec(n, spec){
   for(const s of spec){
@@ -10020,8 +10013,9 @@ function inSpec(n, spec){
 function classifyGrupo(grupoStr){
   const n = Number(grupoStr);
   for(const classe in RANGE_TABLES.veiculos){ if(inSpec(n, RANGE_TABLES.veiculos[classe])) return {tipo:'veiculos', classe}; }
+  for(const classe in RANGE_TABLES.servicos){ if(inSpec(n, RANGE_TABLES.servicos[classe])) return {tipo:'servicos', classe}; }
   for(const classe in RANGE_TABLES.imoveis){ if(inSpec(n, RANGE_TABLES.imoveis[classe])) return {tipo:'imoveis', classe}; }
-  return null; // sem classe automatica -> tratado como grupo independente (aba veiculos por padrao)
+  return null; // sem classe automatica -> aba "outros bens moveis"
 }
 
 const grouped = groupBy(DATA, 'grupo');
@@ -10036,7 +10030,7 @@ for(const [grupo, rows] of grouped){
 }
 function tipoDoGrupo(grupo){
   const m = groupMeta.get(grupo);
-  return (m.classe && m.classe.tipo) || 'veiculos';
+  return (m.classe && m.classe.tipo) || 'outros';
 }
 function chaveDoGrupo(grupo){
   const m = groupMeta.get(grupo);
