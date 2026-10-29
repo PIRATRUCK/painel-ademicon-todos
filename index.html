@@ -80,6 +80,13 @@
     line-height:1.5;
   }
   .help b{color:var(--text);}
+  .tabs{display:flex;gap:8px;margin-bottom:16px;}
+  .tab-btn{background:var(--card);border:1px solid var(--border);color:var(--muted);padding:10px 18px;border-radius:6px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;}
+  .tab-btn.active{background:var(--red);border-color:var(--red);color:#fff;}
+  .bucket{background:var(--card);border:1px solid var(--border);border-top:3px solid var(--amber);border-radius:8px;margin-bottom:10px;overflow:hidden;}
+  .bucket-head{background:var(--bg2);padding:10px 16px;font-size:13px;font-weight:700;border-bottom:1px solid var(--border);}
+  .bucket-head .classe-tag{color:var(--amber);}
+  .bucket-head .classe-meta{color:var(--muted);font-weight:400;font-size:11px;margin-left:8px;}
   .group{
     background:var(--card);
     border:1px solid var(--border);
@@ -233,6 +240,11 @@
     <span class="month-hint" id="mesHint"></span>
   </div>
 
+  <div class="tabs" id="tabs">
+    <button class="tab-btn active" data-tab="veiculos" type="button">🚛 Consórcio de Veículos</button>
+    <button class="tab-btn" data-tab="imoveis" type="button">🏠 Consórcio de Imóveis</button>
+  </div>
+
   <div class="month-row">
     <label for="buscaInput">Buscar:</label>
     <input id="buscaInput" type="text" placeholder="nº do grupo ou nome do consorciado" style="flex:1;background:#000;border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:4px;font-size:14px;">
@@ -247,14 +259,13 @@
   </div>
 
   <div class="help">
-    <b>Como usar:</b> em cada grupo, digite os 5 números da extração da Loteria Federal (1º ao 5º, igual sai no resultado oficial). Qualquer cota que bater com um desses números foi
-    <b>contemplada no sorteio</b> — o painel marca
-    <b style="color:var(--green)">VERDE</b> quando bate com o 1º número, e
-    <b style="color:var(--blue)">AZUL</b> quando bate com um dos outros 4 (2º a 5º).
-    <b style="color:var(--amber)">PRÓXIMA</b> (âmbar) é só quando a cota está a até 150 números de distância do 1º número, sem ter batido com nenhum.
-    Digite os 5 números e clique em <b>Salvar</b> para conferir — fica salvo, mês a mês.
+    <b>Como usar:</b> o resultado da Loteria Federal sai por <b>classe</b> (tamanho do grupo — 500/1000/2000/3333/5000/9999, definido pela Comassetto), não por grupo individual. Digite os 5 números 1x por classe, em "Resultado do sorteio" abaixo — aplica automaticamente a todos os grupos daquela classe.
+    <b style="color:var(--green)">VERDE</b> = cota bateu com o 1º número,
+    <b style="color:var(--blue)">AZUL</b> = bateu com um dos outros 4 (2º a 5º),
+    <b style="color:var(--amber)">PRÓXIMA</b> = até 150 números de distância do 1º, sem bater.
   </div>
 
+  <div id="buckets"></div>
   <div id="groups"></div>
 </div>
 
@@ -9949,10 +9960,11 @@ function currentMonthStr(){
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
 }
 let selectedMonth = currentMonthStr();
-let currentMonthData = {}; // {grupo:[5 strings]} do mes selecionado, vindo do Firestore
+let currentMonthData = {}; // {chave:[5 strings]} do mes selecionado, vindo do Firestore. chave = "tipo_classe" (bucket) ou "grupo_XXXXXX" (sem classe automatica)
 let unsubMonth = null;
-let editingOverride = new Set(); // grupos que o usuario clicou "Editar" explicitamente
+let editingOverride = new Set(); // chaves que o usuario clicou "Editar" explicitamente
 let loadError = null;
+let activeTab = 'veiculos';
 
 function escutaMes(mes){
   if(unsubMonth) unsubMonth();
@@ -9992,13 +10004,25 @@ function groupBy(arr, key){
   return m;
 }
 
-// Classes de espelhamento (grupos com o mesmo resultado de sorteio).
-// Preencher cada classe com os códigos de grupo informados pelo Kayque, ex:
-// const CLASSES = [ ['000680','000690','000720'], ['000640','000710'] ];
-const CLASSES = [];
-const DEFAULT_MIRRORS = {};
-CLASSES.forEach(classe=>{ classe.forEach(g=>{ DEFAULT_MIRRORS[g] = classe.filter(x=>x!==g); }); });
-const mirrors = DEFAULT_MIRRORS;
+// Faixas de classificação por classe (tamanho de grupo), informadas pelo Kayque (29/10/2026)
+// a partir da tabela oficial da Comassetto. Formato de cada item: numero isolado, ou [min,max] pra faixa.
+const RANGE_TABLES = {
+  veiculos: {"500": [[1171,1172],[1502,1504],3013,[4109,4110],4115],"1000": [1173,[1601,1679],[1681,1682],[1684,1685],[1694,1695],1697,[1700,1701],1706,1708,1713,[4111,4114],[8000,8003]],"2000": [1680,1683,[1686,1689],[1691,1692],1696,[1698,1699],[1702,1705],1707,[1709,1712],1714,1718],"5000": [1690,1715]},
+  imoveis: {"1000": [[20,70],370,[430,510],600,6102],"2000": [420,[520,590],[611,640],[710,860],[960,1000],1100],"3333": [[651,700],[720,790],[800,850],880,890,930,940,950,1090,1120,[12126,12127],12129,12133,12148,12155,12165,[12175,12176],12183,12193,[12197,12198]],"5000": [870,900,910,921,[1010,1080],1110,[1180,12001],12128,[12130,12132],[12134,12147],[12149,12151],[12156,12159],[12161,12162],12164,12166,[12168,12170],12172,12174,12177,12179,[12181,12182],12184,12187,[12189,12190],12192,12194,12196,[12200,12203],[12208,12209],12211],"9999": [[12152,12154],12160,12163,12167,12171,12173,12178,12180,[12185,12186],12188,12191,12195,12199,12207,12210]}
+};
+function inSpec(n, spec){
+  for(const s of spec){
+    if(Array.isArray(s)){ if(n>=s[0] && n<=s[1]) return true; }
+    else if(n===s) return true;
+  }
+  return false;
+}
+function classifyGrupo(grupoStr){
+  const n = Number(grupoStr);
+  for(const classe in RANGE_TABLES.veiculos){ if(inSpec(n, RANGE_TABLES.veiculos[classe])) return {tipo:'veiculos', classe}; }
+  for(const classe in RANGE_TABLES.imoveis){ if(inSpec(n, RANGE_TABLES.imoveis[classe])) return {tipo:'imoveis', classe}; }
+  return null; // sem classe automatica -> tratado como grupo independente (aba veiculos por padrao)
+}
 
 const grouped = groupBy(DATA, 'grupo');
 const groupMeta = new Map();
@@ -10007,13 +10031,23 @@ for(const [grupo, rows] of grouped){
     valor: rows[0].valor,
     numProxAssembleia: rows[0].numProxAssembleia,
     dataProxVenc: rows[0].dataProxVenc,
-    consorciados: [...new Set(rows.map(r=>r.consorciado))]
+    classe: classifyGrupo(grupo)
   });
 }
+function tipoDoGrupo(grupo){
+  const m = groupMeta.get(grupo);
+  return (m.classe && m.classe.tipo) || 'veiculos';
+}
+function chaveDoGrupo(grupo){
+  const m = groupMeta.get(grupo);
+  return m.classe ? (m.classe.tipo+'_'+m.classe.classe) : ('grupo_'+grupo);
+}
 
+const bucketsContainer = document.getElementById('buckets');
 const container = document.getElementById('groups');
 
 function render(){
+  bucketsContainer.innerHTML = '';
   container.innerHTML = '';
 
   if(loadError){
@@ -10027,7 +10061,7 @@ function render(){
   let totContempladas = 0, totProximas = 0, totCotas = 0;
 
   const termo = (document.getElementById('buscaInput').value || '').trim().toLowerCase();
-  let sortedGroups = [...grouped.keys()].sort();
+  let sortedGroups = [...grouped.keys()].filter(g=>tipoDoGrupo(g)===activeTab).sort();
   if(termo){
     sortedGroups = sortedGroups.filter(g=>{
       if(g.toLowerCase().includes(termo)) return true;
@@ -10036,49 +10070,65 @@ function render(){
   }
   document.getElementById('buscaHint').textContent = termo ? (sortedGroups.length+' grupo(s) encontrado(s)') : '';
 
-  sortedGroups.forEach(grupo=>{
-    const rows = grouped.get(grupo).slice().sort((a,b)=>Number(a.cota)-Number(b.cota));
-    const meta = groupMeta.get(grupo);
-    const gd = getDraws()[grupo] || ['','','','',''];
+  // ===== Resultado do sorteio por classe (bucket) =====
+  const gruposPorChave = new Map();
+  sortedGroups.forEach(g=>{
+    const chave = chaveDoGrupo(g);
+    if(!gruposPorChave.has(chave)) gruposPorChave.set(chave, []);
+    gruposPorChave.get(chave).push(g);
+  });
+  [...gruposPorChave.keys()].sort().forEach(chave=>{
+    const gruposDaChave = gruposPorChave.get(chave);
+    const gd = getDraws()[chave] || ['','','','',''];
     const hasSaved = gd.some(v=>v);
-    const isLocked = hasSaved && !editingOverride.has(grupo);
+    const isLocked = hasSaved && !editingOverride.has(chave);
+    const isIndependente = chave.startsWith('grupo_');
 
     const div = document.createElement('div');
-    div.className = 'group';
-
+    div.className = 'bucket';
+    const label = isIndependente ? ('Grupo '+chave.replace('grupo_','')+' — sem classe automática') : ('Classe '+chave.split('_')[1]);
     const head = document.createElement('div');
-    head.className = 'group-head';
-    head.innerHTML = '<div class="title">Grupo <span class="grupo-num">'+grupo+'</span></div>'+
-      '<div class="meta">Crédito R$ '+meta.valor+' &nbsp;·&nbsp; Próx. assembleia nº '+(meta.numProxAssembleia ?? '—')+' em '+fmtDate(meta.dataProxVenc)+'</div>';
+    head.className = 'bucket-head';
+    head.innerHTML = '<span class="classe-tag">'+label+'</span><span class="classe-meta">aplica a '+gruposDaChave.length+' grupo(s): '+gruposDaChave.join(', ')+'</span>';
     div.appendChild(head);
 
     const drawRow = document.createElement('div');
     drawRow.className = 'draw-row';
     let inputsHtml = '<label>Loteria Federal:</label>';
     for(let i=0;i<5;i++){
-      inputsHtml += '<input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" data-grupo="'+grupo+'" data-idx="'+i+'" value="'+(gd[i]||'')+'" placeholder="'+(i+1)+'º"'+(isLocked?' disabled':'')+'>';
+      inputsHtml += '<input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" data-chave="'+chave+'" data-idx="'+i+'" value="'+(gd[i]||'')+'" placeholder="'+(i+1)+'º"'+(isLocked?' disabled':'')+'>';
     }
     if(isLocked){
       inputsHtml += '<span class="sep">salvo — verde = bateu com 1º, azul = bateu com 2º a 5º</span>';
-      inputsHtml += '<button class="save-btn" data-edit="'+grupo+'">Editar</button>';
+      inputsHtml += '<button class="save-btn" data-edit="'+chave+'">Editar</button>';
     }else{
       inputsHtml += '<span class="sep">verde = bate com 1º · azul = bate com 2º a 5º</span>';
-      inputsHtml += '<button class="save-btn" data-save="'+grupo+'">Salvar</button>';
-      inputsHtml += '<button class="clear-btn" data-clear="'+grupo+'">Limpar</button>';
+      inputsHtml += '<button class="save-btn" data-save="'+chave+'">Salvar</button>';
+      inputsHtml += '<button class="clear-btn" data-clear="'+chave+'">Limpar</button>';
     }
-    inputsHtml += '<span class="savehint" data-savedmsg="'+grupo+'"></span>';
+    inputsHtml += '<span class="savehint" data-savedmsg="'+chave+'"></span>';
     drawRow.innerHTML = inputsHtml;
     div.appendChild(drawRow);
 
-    if(!isLocked){
-      const mirrorRow = document.createElement('details');
-      mirrorRow.className = 'mirror-row';
-      const meusEspelhos = mirrors[grupo] || [];
-      let mirrorHtml = '<summary>Espelha automaticamente com: '+(meusEspelhos.length?meusEspelhos.join(', '):'nenhum')+'</summary>';
-      mirrorHtml += '<div class="mirror-list" style="color:var(--muted);font-size:11px;">Classes fixas definidas pelo Kayque — fala comigo se precisar mudar.</div>';
-      mirrorRow.innerHTML = mirrorHtml;
-      div.appendChild(mirrorRow);
-    }
+    bucketsContainer.appendChild(div);
+  });
+
+  // ===== Grupos / cotas =====
+  sortedGroups.forEach(grupo=>{
+    const rows = grouped.get(grupo).slice().sort((a,b)=>Number(a.cota)-Number(b.cota));
+    const meta = groupMeta.get(grupo);
+    const chave = chaveDoGrupo(grupo);
+    const gd = getDraws()[chave] || ['','','','',''];
+
+    const div = document.createElement('div');
+    div.className = 'group';
+
+    const head = document.createElement('div');
+    head.className = 'group-head';
+    const classeLabel = meta.classe ? ('classe '+meta.classe.classe) : 'sem classe automática';
+    head.innerHTML = '<div class="title">Grupo <span class="grupo-num">'+grupo+'</span></div>'+
+      '<div class="meta">'+classeLabel+' &nbsp;·&nbsp; Crédito R$ '+meta.valor+' &nbsp;·&nbsp; Próx. assembleia nº '+(meta.numProxAssembleia ?? '—')+' em '+fmtDate(meta.dataProxVenc)+'</div>';
+    div.appendChild(head);
 
     const table = document.createElement('table');
     table.innerHTML = '<thead><tr><th>Cota</th><th>Consorciado</th><th>Status</th></tr></thead>';
@@ -10121,40 +10171,45 @@ function render(){
   document.getElementById('totProximas').textContent = totProximas;
 }
 
-container.addEventListener('input', e=>{
+document.getElementById('tabs').addEventListener('click', e=>{
+  const btn = e.target.closest('.tab-btn');
+  if(!btn) return;
+  activeTab = btn.dataset.tab;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b===btn));
+  editingOverride.clear();
+  render();
+});
+
+bucketsContainer.addEventListener('input', e=>{
   if(e.target.tagName === 'INPUT'){
     const clean = e.target.value.replace(/\D/g,'');
     if(e.target.value !== clean) e.target.value = clean;
   }
 });
 
-container.addEventListener('click', e=>{
+bucketsContainer.addEventListener('click', e=>{
   if(e.target.dataset.save){
-    const grupo = e.target.dataset.save;
-    const inputs = document.querySelectorAll('input[data-grupo="'+grupo+'"]');
+    const chave = e.target.dataset.save;
+    const inputs = document.querySelectorAll('input[data-chave="'+chave+'"]');
     const gd = ['','','','',''];
     inputs.forEach(el=>{ gd[Number(el.dataset.idx)] = el.value.replace(/\D/g,''); });
 
-    const espelhados = mirrors[grupo] || [];
-    const updateObj = {}; updateObj[grupo] = gd;
-    espelhados.forEach(g=>{ updateObj[g] = gd.slice(); });
+    const updateObj = {}; updateObj[chave] = gd;
+    currentMonthData[chave] = gd;
+    editingOverride.delete(chave);
 
-    // Atualiza local pra resposta imediata; o listener do Firestore confirma depois.
-    Object.keys(updateObj).forEach(g=>{ currentMonthData[g] = updateObj[g]; });
-    editingOverride.delete(grupo);
-
-    const hint = document.querySelector('[data-savedmsg="'+grupo+'"]');
+    const hint = document.querySelector('[data-savedmsg="'+chave+'"]');
     if(hint) hint.textContent = 'Salvando…';
 
     db.collection('ademicon_todos_sorteios').doc(selectedMonth).set(
       { resultados: updateObj, atualizadoEm: new Date().toISOString() },
       { merge: true }
     ).then(()=>{
-      const h = document.querySelector('[data-savedmsg="'+grupo+'"]');
-      if(h){ h.textContent = 'Salvo'+(espelhados.length?' (+'+espelhados.length+' espelho'+(espelhados.length>1?'s':'')+')':'')+' ✓'; setTimeout(()=>{ if(h) h.textContent=''; }, 3000); }
+      const h = document.querySelector('[data-savedmsg="'+chave+'"]');
+      if(h){ h.textContent = 'Salvo ✓'; setTimeout(()=>{ if(h) h.textContent=''; }, 3000); }
     }).catch(err=>{
       console.error(err);
-      const h = document.querySelector('[data-savedmsg="'+grupo+'"]');
+      const h = document.querySelector('[data-savedmsg="'+chave+'"]');
       if(h) h.textContent = 'Erro ao salvar: '+(err.message||err);
     });
 
@@ -10165,11 +10220,11 @@ container.addEventListener('click', e=>{
     render();
   }
   if(e.target.dataset.clear){
-    const grupo = e.target.dataset.clear;
+    const chave = e.target.dataset.clear;
     const vazio = ['','','','',''];
-    currentMonthData[grupo] = vazio;
-    editingOverride.add(grupo);
-    const updateObj = {}; updateObj[grupo] = vazio;
+    currentMonthData[chave] = vazio;
+    editingOverride.add(chave);
+    const updateObj = {}; updateObj[chave] = vazio;
     db.collection('ademicon_todos_sorteios').doc(selectedMonth).set(
       { resultados: updateObj, atualizadoEm: new Date().toISOString() },
       { merge: true }
